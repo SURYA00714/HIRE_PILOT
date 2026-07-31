@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String? // Optional for OAuth
+  name      String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations placeholder
+  profile   Profile?
+  resume    Resume?
+  sessions  InterviewSession[]
+}
+
+model Profile {
+  id              String  @id @default(uuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college         String?
+  degree          String?
+  skills          String[]
+  experience      Int? // years
+  preferredLang   String?
+  targetRole      String?
+  targetCompany   String?
+}
+
+model Resume {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileUrl     String
+  fileName    String
+  atsScore    Int?
+  feedback    String?  // JSON string from AI analysis
+  extractedText String? // Raw text extracted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InterviewSession {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String   // HR, Behavioral, Technical, Coding
+  role            String
+  experienceLevel String
+  inputMode       String   // Voice, Text, Hybrid
+  status          String   @default("PENDING") // PENDING, ONGOING, COMPLETED
+  overallScore    Int?
+  feedback        String?  // Detailed JSON breakdown
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

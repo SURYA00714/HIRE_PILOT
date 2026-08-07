@@ -1,21 +1,22 @@
 import { Router } from 'express';
-import { register, login, oauthGoogle, oauthGithub } from '../controllers/auth.controller';
+import { register, login, getMe, oauthGoogle, oauthGithub } from '../controllers/auth.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authLimiter } from '../middleware/rateLimiter';
+import { validate, registerSchema, loginSchema } from '../middleware/validation';
 
 const router = Router();
 
-router.post('/register', register);
-router.post('/login', login);
+router.post('/register', authLimiter, validate(registerSchema), register);
+router.post('/login', authLimiter, validate(loginSchema), login);
 
 router.get('/google', oauthGoogle);
 router.get('/github', oauthGithub);
 
-// Example protected route for testing
-router.get('/me', authenticate, (req, res) => {
-  res.json({ message: 'You are authenticated', user: (req as any).user });
-});
+// Get current user (for session verification)
+router.get('/me', authenticate, getMe);
 
-router.get('/admin', authenticate, authorize(['ADMIN']), (req, res) => {
+// Admin check endpoint
+router.get('/admin', authenticate, authorize(['ADMIN']), (_req, res) => {
   res.json({ message: 'Welcome Admin' });
 });
 

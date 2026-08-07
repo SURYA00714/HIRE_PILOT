@@ -3,67 +3,163 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum Role {
-  USER
-  ADMIN
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String? // Optional for OAuth
+  password  String?  // Optional for OAuth users
   name      String?
-  role      Role     @default(USER)
+  role      String   @default("USER") // Changed to string for sqlite ease
+  provider  String?  // "google", "github", or null for email
+  providerId String? // OAuth provider's user ID
+  xp        Int      @default(0)
+  streak    Int      @default(0)
+  lastActiveDate DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  // Relations placeholder
-  profile   Profile?
-  resume    Resume?
-  sessions  InterviewSession[]
+
+  profile       Profile?
+  resume        Resume?
+  sessions      InterviewSession[]
+  achievements  UserAchievement[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
 }
 
 model Profile {
-  id              String  @id @default(uuid())
-  userId          String  @unique
-  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  college         String?
-  degree          String?
-  skills          String[]
-  experience      Int? // years
-  preferredLang   String?
-  targetRole      String?
-  targetCompany   String?
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarUrl     String?
+  bio           String?
+  college       String?
+  degree        String?
+  skills        String   @default("[]") // JSON stringified array
+  experience    Int?     // years
+  preferredLang String?
+  targetRole    String?
+  targetCompany String?
+  weakTopics    String   @default("[]") // JSON stringified array
+  strongTopics  String   @default("[]") // JSON stringified array
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Resume {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fileUrl     String
-  fileName    String
-  atsScore    Int?
-  feedback    String?  // JSON string from AI analysis
-  extractedText String? // Raw text extracted
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileUrl       String
+  fileName      String
+  atsScore      Int?
+  resumeScore   Int?
+  feedback      String?  // Full JSON from AI analysis
+  extractedText String?  // Raw text extracted from PDF
+  skills        String   @default("[]") // JSON stringified array
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model InterviewSession {
-  id              String   @id @default(uuid())
+  id              String          @id @default(uuid())
+  correlationId   String?         @unique
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type            String   // HR, Behavioral, Technical, Coding
-  role            String
-  experienceLevel String
-  inputMode       String   // Voice, Text, Hybrid
-  status          String   @default("PENDING") // PENDING, ONGOING, COMPLETED
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String          // HR, Behavioral, Technical, Coding, etc.
+  role            String          @default("software_engineer")
+  experienceLevel String          @default("mid")
+  inputMode       String          @default("text")
+  difficulty      Int             @default(3) // 1-10 scale
+  questionCount   Int             @default(5)
+  duration        Int?            // seconds
+  status          String          @default("CREATED") // Uses InterviewState values
   overallScore    Int?
-  feedback        String?  // Detailed JSON breakdown
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  technicalScore  Int?
+  communicationScore Int?
+  problemSolvingScore Int?
+  strengths       String?         // JSON string array
+  weaknesses      String?         // JSON string array
+  detailedFeedback String?        
+  feedback        String?         // Legacy/Detailed JSON breakdown from AI
+  xpEarned        Int             @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  questions       Question[]
+}
+
+model Question {
+  id                String           @id @default(uuid())
+  sessionId         String
+  session           InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionText      String
+  topic             String           @default("general")
+  subtopic          String?
+  answerText        String?
+  normalizedAnswer  String?
+  aiFeedback        String?          // AI's feedback on this specific answer
+  score             Int?             // 0-100
+  scoreJustification String?
+  confidenceScore   Float?           // 0-1 range
+  difficulty        Int              @default(3)
+  difficultyBefore  Int?
+  difficultyAfter   Int?
+  difficultyDelta   Float?
+  orderIndex        Int              // Question number in the session
+  followUpDepth     Int              @default(0)
+  responseTimeMs    Int?             
+  aiPromptVersion   String?
+  aiModelVersion    String?
+  isFallback        Boolean          @default(false)
+  timeTaken         Int?             // Legacy
+  createdAt         DateTime         @default(now())
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  icon        String   // emoji or icon name
+  xpReward    Int      @default(0)
+  condition   String   // JSON describing unlock condition
+  createdAt   DateTime @default(now())
+
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("info") // info, success, warning, achievement
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   // e.g. "LOGIN", "REGISTER", "START_INTERVIEW", "ADMIN_DELETE_USER"
+  details   String?  // JSON with extra context
+  ipAddress String?
+  createdAt DateTime @default(now())
 }

@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15
+  postgres:
+    image: postgres:15-alpine
     container_name: hire_pilot_db
     environment:
       POSTGRES_USER: admin
@@ -11,7 +11,54 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d hire_pilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hire_pilot_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hire_pilot_backend
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/hire_pilot?schema=public
+      - PORT=5000
+      - JWT_SECRET=${JWT_SECRET:-hire_pilot_jwt_secret_key_2024_production}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3000
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hire_pilot_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hire_pilot_frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+      - NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - hire_pilot_network
 
 volumes:
-  postgres_data:
+  pgdata:
+
+networks:
+  hire_pilot_network:
+    driver: bridge

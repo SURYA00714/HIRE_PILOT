@@ -3,6 +3,17 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { supabase } from '../utils/supabase';
 
+// Helper to parse JSON strings from SQLite
+const parseProfile = (profile: any) => {
+  if (!profile) return profile;
+  return {
+    ...profile,
+    skills: profile.skills ? JSON.parse(profile.skills) : [],
+    weakTopics: profile.weakTopics ? JSON.parse(profile.weakTopics) : [],
+    strongTopics: profile.strongTopics ? JSON.parse(profile.strongTopics) : []
+  };
+};
+
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -14,7 +25,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
     });
 
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
-    res.json(profile);
+    res.json(parseProfile(profile));
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -32,7 +43,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       data: {
         college,
         degree,
-        skills,
+        skills: skills ? JSON.stringify(skills) : undefined,
         experience,
         preferredLang,
         targetRole,
@@ -40,7 +51,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.json(profile);
+    res.json(parseProfile(profile));
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
